@@ -40,6 +40,12 @@ window.PosterFeedback = (function () {
     var latencies = d.notices.filter(function (n) { return n.latency !== null; })
                              .map(function (n) { return n.latency; });
     var missed = d.notices.filter(function (n) { return n.latency === null; });
+    // 同じ人が一度帰ってまた来ることがある（難度3のシナリオ）。
+    // そのたびに見逃すと名前が二度並んでしまうので、人単位にまとめる
+    var missedLabels = [];
+    missed.forEach(function (n) {
+      if (missedLabels.indexOf(n.label) < 0) { missedLabels.push(n.label); }
+    });
 
     return {
       at: new Date().toISOString(),
@@ -49,8 +55,8 @@ window.PosterFeedback = (function () {
       avgNotice: latencies.length
         ? Math.round(latencies.reduce(function (a, b) { return a + b; }, 0) / latencies.length * 10) / 10
         : null,
-      missedCount: missed.length,
-      missedLabels: missed.map(function (n) { return n.label; }),
+      missedCount: missedLabels.length,
+      missedLabels: missedLabels,
       arrivalCount: d.notices.length,
       maxShare: total ? maxOne / total : 0,
       posterShare: total ? posterTotal / total : 0,

@@ -47,7 +47,12 @@ AFRAME.registerComponent('jp-label', {
     if (sig === this.sig) { return; }
     this.sig = sig;
 
-    if (!d.value) { this.el.removeObject3D('jp-label'); return; }
+    if (!d.value) {
+      // 板ごと外すので、次に文字が入ったときはテクスチャも作り直しになる
+      this.el.removeObject3D('jp-label');
+      this.texW = this.texH = null;
+      return;
+    }
 
     // HTML属性で書いた場合、改行は \n の2文字として渡ってくる
     var lines = String(d.value).replace(/\\n/g, '\n').split('\n');
@@ -87,7 +92,8 @@ AFRAME.registerComponent('jp-label', {
     // canvas の寸法が変わったときは needsUpdate だけでは足りない。
     // GPU側の確保が前のサイズのままで、古い文字が新しい板に押し込まれて表示される。
     // 文字数が変わるたびに起きるので、テクスチャごと作り直している
-    if (this.texW !== this.canvas.width || this.texH !== this.canvas.height) {
+    if (!mesh.material.map ||
+        this.texW !== this.canvas.width || this.texH !== this.canvas.height) {
       if (mesh.material.map) { mesh.material.map.dispose(); }
       mesh.material.map = new THREE.CanvasTexture(this.canvas);
       mesh.material.map.anisotropy = 4;
