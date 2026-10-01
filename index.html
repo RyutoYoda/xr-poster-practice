@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ポスター発表練習（WebXR 試作）</title>
+<link rel="icon" href="data:,">
+<script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+<script src="./js/jp-label.js"></script>
+<script src="./js/scenario.js"></script>
+<script src="./js/session.js"></script>
+<script src="./js/feedback.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden;
+               font: 14px/1.7 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  .ui { position: fixed; z-index: 20; color: #eef1f5; }
+
+  #start, #result {
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(680px, 92vw); max-height: 86vh; overflow: auto;
+    background: rgba(14, 17, 23, 0.94); border: 1px solid #2d3545; border-radius: 10px;
+    padding: 22px 26px; box-sizing: border-box;
+  }
+  h1 { font-size: 19px; margin: 0 0 10px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  p { margin: 8px 0; }
+  .sub { color: #a9b4c6; }
+  ul { margin: 8px 0; padding-left: 1.2em; }
+  li { margin: 3px 0; }
+
+  button {
+    margin-top: 14px; padding: 10px 22px; font-size: 15px; cursor: pointer;
+    background: #3c7fd0; color: #fff; border: 0; border-radius: 6px;
+  }
+  button.sec { background: #39414f; margin-left: 8px; }
+
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 12px; }
+  th, td { border-bottom: 1px solid #2d3545; padding: 7px 6px; text-align: left; font-weight: 400; }
+  th { color: #a9b4c6; width: 42%; }
+  td.t { color: #8a94a6; font-size: 13px; }
+  .ok { color: #6ddba0; } .ng { color: #ff9d85; }
+  .warn { color: #ffc46b; }
+  #next-level { color: #7fc2f5; margin-top: 10px; }
+  #log { display: none; white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace;
+         font-size: 11px; color: #9fb0c6; max-height: 220px; overflow: auto;
+         background: #0a0d13; padding: 10px; border-radius: 6px; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div id="start" class="ui">
+  <h1>ポスター発表の練習</h1>
+  <p class="sub">学会のポスター発表を想定した練習です。あなたはポスターの前に立つ発表者で、聴衆は発表の途中で入れ替わります。</p>
+  <ul>
+    <li>正面が聴衆、左手がポスターです</li>
+    <li>PCではドラッグで向きを変えます。ヘッドセットがあれば右下のVRボタンから入れます</li>
+    <li>見ている先が記録されます。声は録りません</li>
+  </ul>
+  <p class="sub">練習の目的は、話す内容ではなく「場の制御」です。新しく来た人に気づけているか、特定の一人に偏っていないか、ポスターばかり見ていないかを後で返します。</p>
+  <p id="level-note"></p>
+  <p id="next-level"></p>
+  <button id="btn-start">開始する</button>
+</div>
+
+<div id="result" class="ui" hidden>
+  <div id="result-body"></div>
+  <p id="next-level-2" class="sub"></p>
+  <button id="btn-again">次の難度でもう一度</button>
+  <button id="btn-log" class="sec">記録（xAPI風）を見る</button>
+  <pre id="log"></pre>
+</div>
+
+<a-scene background="color: #10141c"
+         renderer="colorManagement: true; antialias: true"
+         poster-session>
+
+  <!-- 会場 -->
+  <a-plane position="0 0 -1" rotation="-90 0 0" width="14" height="14"
+           material="color: #272d3a; roughness: 1"></a-plane>
+  <a-box position="0 1.6 -5.2" width="14" height="3.2" depth="0.1"
+         material="color: #2a3140"></a-box>
+  <a-box position="-2.1 1.6 -1.2" width="0.1" height="3.2" depth="7"
+         material="color: #2a3140"></a-box>
+
+  <a-entity light="type: ambient; color: #9aa6bd; intensity: 1.0"></a-entity>
+  <a-entity light="type: directional; intensity: 0.6" position="2 4 1"></a-entity>
+
+  <!-- ポスター。発表者の左手（-X側）にあるので、指すには体ごと左を向く必要がある -->
+  <a-entity id="poster" position="-2.0 1.25 -1.2" rotation="0 90 0">
+    <a-plane width="1.0" height="1.5" material="color: #f3f5f8"></a-plane>
+    <a-entity jp-label="value: クロスジャンル推薦の\n評価設計について; color: #1b2029; size: 0.062"
+              position="0 0.65 0.012"></a-entity>
+  </a-entity>
+
+  <!-- 聴衆はここに動的に作られる -->
+  <a-entity id="audience"></a-entity>
+
+  <!-- 画面内の時計と通知。HMDでも見えるようにシーン内に置いている -->
+  <a-entity id="hud-timer"  jp-label="color: #cfd8e6; size: 0.15" position="0 2.46 -2.6"></a-entity>
+  <a-entity id="hud-notice" jp-label="color: #ffc46b; size: 0.14" position="0 2.18 -2.6"></a-entity>
+  <a-entity id="result-3d"  jp-label="color: #eef1f5; size: 0.17" position="0 1.80 -2.6"
+            visible="false"></a-entity>
+
+  <!-- 視線はカメラから飛ばした raycaster で取る。アイトラッキングではなく頭の向き -->
+  <a-entity camera look-controls="pointerLockEnabled: false" wasd-controls="enabled: false"
+            position="0 1.6 0"
+            raycaster="objects: .gaze-target; interval: 80; far: 8">
+    <a-ring position="0 0 -1" radius-inner="0.008" radius-outer="0.012"
+            material="color: #7fc2f5; shader: flat; opacity: 0.8; transparent: true"></a-ring>
+  </a-entity>
+</a-scene>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var speed = parseFloat(params.get('speed')) || 1;   // 動作確認用の早送り
+  var scene = document.querySelector('a-scene');
+  var next = window.PosterScenario.pickLevel(window.PosterFeedback.loadHistory());
+
+  function applyLevel(n) {
+    scene.setAttribute('poster-session', { level: n.level, speed: speed });
+    var lv = window.PosterScenario.LEVELS[n.level];
+    document.getElementById('level-note').textContent =
+      '難度' + n.level + '（' + lv.label + '）：' + lv.note;
+    document.getElementById('next-level').textContent = n.reason;
+  }
+  applyLevel(next);
+
+  // ポスターの面を分割して、どこを使ったかを取れるようにする
+  var poster = document.querySelector('#poster');
+  window.PosterScenario.PANELS.forEach(function (p) {
+    var el = document.createElement('a-plane');
+    el.setAttribute('width', 0.86);
+    el.setAttribute('height', 0.29);
+    el.setAttribute('position', '0 ' + (p.y - 1.25) + ' 0.012');
+    el.setAttribute('material', 'color: #dfe6ef');
+    el.setAttribute('class', 'gaze-target');
+    el.dataset.targetId = p.id;
+    el.dataset.targetLabel = p.label;
+    var t = document.createElement('a-entity');
+    t.setAttribute('jp-label', { value: p.label, color: '#3d4760', size: 0.11 });
+    t.setAttribute('position', '0 0 0.01');
+    el.appendChild(t);
+    poster.appendChild(el);
+  });
+
+  window.PosterFeedback.init(scene, function (n) {
+    document.getElementById('next-level-2').textContent = n.reason;
+    window.__next = n;
+  });
+
+  document.getElementById('btn-start').addEventListener('click', function () {
+    document.getElementById('start').hidden = true;
+    document.querySelector('#result-3d').setAttribute('visible', false);
+    scene.emit('session-start');
+  });
+
+  document.getElementById('btn-again').addEventListener('click', function () {
+    applyLevel(window.__next);
+    document.getElementById('result').hidden = true;
+    document.getElementById('log').style.display = 'none';
+    document.querySelector('#result-3d').setAttribute('visible', false);
+    scene.emit('session-start');
+  });
+
+  document.getElementById('btn-log').addEventListener('click', function () {
+    var el = document.getElementById('log');
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+    el.textContent = JSON.stringify(window.__lastStatements || [], null, 2);
+  });
+})();
+</script>
+
+</body>
+</html>
