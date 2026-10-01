@@ -77,17 +77,31 @@ AFRAME.registerComponent('jp-label', {
     var mPerPx = d.size / this.LINE_PX;
     var mesh = this.el.getObject3D('jp-label');
     if (!mesh) {
-      var tex = new THREE.CanvasTexture(this.canvas);
-      tex.anisotropy = 4;
       mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
+        new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide })
       );
       this.el.setObject3D('jp-label', mesh);
+    }
+
+    // canvas の寸法が変わったときは needsUpdate だけでは足りない。
+    // GPU側の確保が前のサイズのままで、古い文字が新しい板に押し込まれて表示される。
+    // 文字数が変わるたびに起きるので、テクスチャごと作り直している
+    if (this.texW !== this.canvas.width || this.texH !== this.canvas.height) {
+      if (mesh.material.map) { mesh.material.map.dispose(); }
+      mesh.material.map = new THREE.CanvasTexture(this.canvas);
+      mesh.material.map.anisotropy = 4;
+      mesh.material.needsUpdate = true;
+      this.texW = this.canvas.width;
+      this.texH = this.canvas.height;
     }
     mesh.material.map.needsUpdate = true;
     mesh.scale.set(this.canvas.width * mPerPx, this.canvas.height * mPerPx, 1);
   },
 
-  remove: function () { this.el.removeObject3D('jp-label'); }
+  remove: function () {
+    var mesh = this.el.getObject3D('jp-label');
+    if (mesh && mesh.material.map) { mesh.material.map.dispose(); }
+    this.el.removeObject3D('jp-label');
+  }
 });
